@@ -1,0 +1,39 @@
+Package: koiosVrsCancerPipe
+Type: Package
+Title: KOIOS and VRS Pipeline for Cancer Variant Phenopackets Generation
+Version: 0.99.0
+Authors@R: 
+    c(person(given = "Gabriele",
+            family = "Bucci",
+            role = c("aut", "cre"),
+            email = "bucci.gabriele@hsr.it",
+            comment = c(ORCID = "0000-0001-9838-7204")),
+        person(given = "Michela",
+            family = "Riba",
+            role = "aut",
+            comment = c(ORCID = "0000-0003-4857-2027")),
+        person(given = "Muhammad",
+            family = "Tajwar",
+            role = "ctb"),
+        person(given = "Guido",
+            family = "Scicolone",
+            role = "ctb"))
+Description: Processes cancer variants from VCF, enriches data using the KOIOS 
+    framework (HGVSg, OMOP concepts), integrates VRS identifiers, applies 
+    frequency filters (AF < 1%), and formats the output into Phenopackets v2 JSON 
+    for interoperable reporting of somatic/germline variants.
+License: GPL-3
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.0)
+Imports:
+    KOIOS,
+    httr,
+    jsonlite,
+    vcfR,
+    uuid,
+    utils,
+    stats
+Suggests:
+    testthat

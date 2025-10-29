@@ -1,0 +1,75 @@
+[
+  {
+    "id": "e709e12d-8452-4feb-bf0e-069ff3206dd2",
+    "subject": {
+      "id": "SAMPLE_ID_M1",
+      "sex": {
+        "label": "FEMALE",
+        "id": "PATO:0000383"
+      },
+      "ageOfOnsetToPhenoPacket": "P60Y"
+    },
+    "metaData": {
+      "phenopacketSchemaVersion": "2.0",
+      "resource": [
+        {
+          "id": "omop_genomic_vocab",
+          "name": "OMOP Genomic Vocabulary",
+          "namespacePrefix": "OMOP",
+          "url": "https://example.com/omop",
+          "version": "2024",
+          "capability": "knowledge"
+        }
+      ],
+      "submittedBy": "KOIOS-VRS-Pipeline"
+    },
+    "interpretations": [
+      {
+        "id": "diagnosis_1",
+        "diagnosis": {
+          "disease": {
+            "label": "Melanoma",
+            "id": "NCIT:C3224"
+          }
+        }
+      },
+      {
+        "id": "variant_interpretation_1",
+        "variantInterpretation": {
+          "id": "SAMPLE_ID_M1_7_140753336",
+          "vrsAllele": {
+            "id": "ga4gh:VA.HaPTmn-rrjRoZnIVw1I4AZPa6YHa2ojh",
+            "type": "Allele"
+          },
+          "extensions": [
+            {
+              "id": "omop_classification",
+              "value": "BRAF on GRCh38 chr7: Substitution in position 140753336 of A replaced by T measurement",
+              "type": "string",
+              "ontologyClass": {
+                "id": 35981340,
+                "label": "BRAF on GRCh38 chr7: Substitution in position 140753336 of A replaced by T measurement"
+              }
+            },
+            {
+              "id": "hgvs_g",
+              "value": "NC_000007.14:g.140753336A>T",
+              "type": "string"
+            }
+          ]
+        },
+        "progressStatus": "COMPLETED"
+      }
+    ],
+    "genomicFiles": [
+      {
+        "uri": "/Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/library/koiosVrsCancerPipe/extdata/melanoma_sample.vcf",
+        "fileAttributes": {
+          "fileName": "melanoma_sample.vcf",
+          "fileFormat": "VCF",
+          "individualId": "SAMPLE_ID_M1"
+        }
+      }
+    ]
+  }
+]

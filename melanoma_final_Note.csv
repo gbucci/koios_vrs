@@ -1,0 +1,2 @@
+koios_hgvsg,CHROM,POS,REF,REF_L,ALT,ALT_L,TYPE,hgvsg,Input_ID,URL,concept_id,concept_name,vrs_id,vrs_seq_id
+NC_000007.14:g.140753336A>T,7,140753336,A,1,T,1,SNP,NC_000007.14:g.140753336A>T,1,http://reg.test.genome.network/allele?hgvs=NC_000007.14:g.140753336A>T,35981340,BRAF on GRCh38 chr7: Substitution in position 140753336 of A replaced by T measurement,ga4gh:VA.HaPTmn-rrjRoZnIVw1I4AZPa6YHa2ojh,ga4gh:SQ.F-LrLMe1SRpfUZHkQmvkVKFEGaoDeHul

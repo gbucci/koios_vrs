@@ -1,0 +1,71 @@
+---
+title: "KOIOS-VRS Cancer Pipeline: Variant Annotation and Phenopacket Generation"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: BiocStyle::html_document
+vignette: >
+  %\VignetteIndexEntry{KOIOS-VRS Cancer Pipeline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# koiosVrsCancerPipe: Workflow for Cancer Variants and Interoperability
+
+## Introduction
+
+The **`koiosVrsCancerPipe`** package provides an integrated pipeline for the post-calling analysis of cancer variants (somatic or germline) originating from a VCF file. The primary goal is to enhance genomic and clinical data interoperability through three key steps:
+
+1.  **Genomic Enrichment:** Using the **KOIOS** framework to annotate variants with HGVSg identifiers, ClinGen classification, and **OMOP (Observational Medical Outcomes Partnership)** concepts.
+2.  **Standardization:** Integration of **VRS (Variant Representation Specification)** identifiers, a crucial requirement for modern genomic data exchange.
+3.  **Clinical Reporting:** Filtering based on population frequency (gnomAD) and generating output compliant with **Phenopackets v2** for unified clinical and genomic data sharing.
+
+This document describes the workflow and provides a usage example with the test data included in the package.
+
+## The Pipeline Workflow
+
+The central function `koios_vrs_pipeline()` executes the following steps in sequence:
+
+### 1. Input Requirements and Clinical Metadata Loading
+
+The pipeline requires two input files for each sample:
+* A VCF file (`.vcf`) containing the genotype column and standard INFO fields (incl. `CLNSIG`, `gnomAD_AF`).
+* An associated CSV file (`.csv`) containing the clinical metadata (Patient ID, Sex, Diagnosis, Age of Onset).
+
+The pipeline retrieves the **Sample ID** from the VCF's genotype column and uses it to look up the corresponding row in the clinical metadata CSV.
+
+### 2. KOIOS Enrichment
+
+Variants are processed using functions from the `KOIOS` package. This step is essential for:
+* Generating the HGVSg identifier (required for VRS lookup).
+* Enriching with ClinGen/ClinVar classification.
+* Mapping variants to an **OMOP `concept_id`** (e.g., Pathogenic, Likely Pathogenic, or **VUS**: `concept_id = 1028197L`).
+
+### 3. Frequency-Based Filtering (AF < 1%)
+
+To minimize downstream workload on non-actionable or common variants, a strict filtering step is applied:
+* **Exclusion:** Variants with a **Population Allele Frequency** (`koios_gnomAD_AF`) **greater than 1% (0.01)** are removed from the pipeline. This ensures that only rare, potentially causative variants are carried forward.
+
+### 4. VRS (Variant Representation Specification) Integration
+
+Only the remaining, rare variants are queried against the external **VRS Sequence Repository API**. The standardized identifiers **`vrs_id`** and **`vrs_seq_id`** are retrieved and appended, ensuring machine-readable data structures.
+
+### 5. Output Generation and Reporting
+
+Finally, the filtered and enriched variants are separated and formatted into three distinct outputs:
+
+* **`_VUS.csv`:** Variants classified as "Variant of Unknown Significance" (OMOP ID `1028197L`).
+* **`_Note.csv`:** Pathogenic, Likely Pathogenic, or classified variants (any OMOP ID other than the VUS ID).
+* **`_Phenopackets.json`:** A **Phenopackets v2 compliant JSON** file, which unifies the standardized genomic data (`vrs_id`) with the patient's clinical metadata (diagnosis, sex, age of onset).
+
+## Usage Example
+
+We will use the package's included example data, simulating a **Melanoma** sample containing a known pathogenic variant (e.g., BRAF V600E) and several VUS.
+
+### Prerequisites
+
+Ensure that the required packages (`KOIOS`, `vcfR`, `httr`, `jsonlite`, and `uuid`) are installed and loaded in your R environment.
+
+```r
+# Load the package (assuming it is installed)
+library(koiosVrsCancerPipe)
+library(vcfR) # Needed for low-level VCF inspection

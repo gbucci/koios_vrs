@@ -1,0 +1,8 @@
+##fileformat=VCFv4.2
+##fileDate=20251008
+##reference=hg38
+##INFO=<ID=gnomAD_AF,Number=A,Type=Float,Description="gnomAD Allele Frequency">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE_ID_C2
+chr5	112175245	rs41295058	C	T	.	PASS	gnomAD_AF=0.0001	GT:AD:DP	0/1:60,60:120
+chr10	101131154	rs121909062	G	A	.	PASS	gnomAD_AF=0.00002	GT:AD:DP	0/1:50,50:100
+# ... (altre 13 varianti con AF < 0.01) ...

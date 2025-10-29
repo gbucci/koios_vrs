@@ -1,0 +1,3 @@
+sample_id,diagnosis_label,diagnosis_ncit_id,sex_label,sex_pato_id,age_of_onset_iso
+SAMPLE_ID_B3,Breast Carcinoma,NCIT:C4872,FEMALE,PATO:0000383,P45Y
+
