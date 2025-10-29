@@ -1,6 +1,6 @@
 # koiosVrsCancerPipe
 
-[![DOI](https://zenodo.org/badge/1072319376.svg)](https://doi.org/10.5281/zenodo.17466333)
+[![DOI](https://zenodo.org/badge/1085835348.svg)](https://doi.org/10.5281/zenodo.17476990)
 
 ## Overview
 
