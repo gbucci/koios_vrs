@@ -34,6 +34,10 @@ Imports:
     vcfR,
     uuid,
     utils,
-    stats
+    stats,
+    rtracklayer,
+    GenomicRanges,
+    AnnotationHub,
+    IRanges
 Suggests:
     testthat

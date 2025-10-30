@@ -1,0 +1,2 @@
+sample_id,diagnosis_label,diagnosis_ncit_id,sex_label,sex_pato_id,age_of_onset_iso
+Paz1,Lung Cancer,NCIT:C7377,MALE,PATO:0000384,P45Y
