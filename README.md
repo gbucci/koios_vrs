@@ -78,37 +78,38 @@ The pipeline uses a clean input/output directory structure:
 
 ```
 koios_vrs/
-├── input/          # Place VCF and clinical CSV files here
+├── examples/       # Synthetic example data for testing
+├── input/          # Place your VCF and clinical CSV files here
 ├── output/         # All results will be generated here
+├── RWD/            # Real world data (excluded from repository)
 ├── R/              # Pipeline code
-└── run_paz1.R      # Example script
+└── run_example.R   # Example script demonstrating usage
 ```
 
 ### Run Example Test
 
-Place your files in the `input/` directory:
-- `sample.vcf` - Your VCF file (hg19 or hg38)
-- `sample.csv` - Clinical metadata with same base name as VCF
+A synthetic melanoma example is provided in the `examples/` directory for testing:
 
-Then run:
 ```R
-Rscript run_paz1.R
+Rscript run_example.R
 ```
+
+This will process the melanoma sample and generate outputs in the `output/` directory.
 
 ### Using the Main Function
 
 ```R
 source("R/koios_pipeline.R")
 
-# For hg38 VCF (default)
+# Process melanoma example (hg38 VCF)
 koios_vrs_pipeline(
-    vcf_path = "sample_hg38.vcf",  # Filename in input/ directory
-    output_base_name = "output_prefix",
+    vcf_path = "melanoma_sample.vcf",
+    output_base_name = "melanoma_output",
     ref_genome = "hg38",  # default
     af_threshold = 0.01,  # 1% AF threshold (default)
     min_dp = 100,  # Minimum read depth (default)
-    input_dir = "input",  # Input directory (default)
-    output_dir = "output",  # Output directory (default)
+    input_dir = "examples",
+    output_dir = "output",
     default_vus_id = 1028197L  # OMOP concept ID for VUS (default)
 )
 
@@ -191,9 +192,18 @@ The `koios_vrs_pipeline()` function executes these sequential steps:
 ## Output Files
 
 For output base name `{prefix}`, the pipeline generates:
-- `{prefix}_Phenopackets.json`: Array of Phenopackets v2 objects
-- `{prefix}_VUS.csv`: Variants of Unknown Significance with all annotations
-- `{prefix}_Note.csv`: Clinically significant variants (non-VUS)
+
+**Main outputs:**
+- `{prefix}_Phenopackets.json`: Array of Phenopackets v2 objects with clinical metadata
+- `{prefix}_VUS.csv`: Variants of Unknown Significance (VUS) with all annotations
+- `{prefix}_Note.csv`: Clinically significant variants (non-VUS) with all annotations
+- `{prefix}_GeneSummary.csv`: Gene-level mutation summary with OMOP concept IDs
+- `{prefix}_annotated.vcf`: Final VCF with VRS and KOIOS annotations in INFO field
+
+**Intermediate files:**
+- `{input}_hg38.vcf`: Lifted VCF from hg19 to hg38 (if input was hg19)
+- `{input}_hg38_preprocessed.vcf`: Quality-filtered VCF ready for KOIOS processing
+- `{input}_hg38_CNV.vcf`: Copy Number Variations separated from SNP/INDEL
 
 ## Development
 
@@ -206,12 +216,15 @@ roxygen2::roxygenize()
 
 ### Testing with Different Samples
 
-Three example datasets are provided in `inst/extdata/`:
-- `melanoma_sample.{vcf,csv}`
-- `breast_sample.{vcf,csv}`
-- `crc_sample.{vcf,csv}` (colorectal cancer)
+Three example synthetic datasets are provided in `inst/extdata/` for package development:
+- `melanoma_sample.{vcf,csv}` - Melanoma example (also in `examples/` for user testing)
+- `breast_sample.{vcf,csv}` - Breast cancer example
+- `crc_sample.{vcf,csv}` - Colorectal cancer example
 
-Modify `inst/scripts/run_example.R` to test different samples.
+The `examples/` directory contains the melanoma sample for user testing. To test with your own data:
+1. Place VCF and clinical CSV files in the `input/` directory
+2. Ensure the CSV has the same base name as the VCF (e.g., `mysample.vcf` requires `mysample.csv`)
+3. Update `run_example.R` with your file names and run it
 
 ## API Dependencies
 

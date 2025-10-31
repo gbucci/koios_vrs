@@ -294,7 +294,10 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         vcf_hg38_obj@fix <- lifted_vcf_fix
         vcf_hg38_obj@gt <- lifted_vcf_gt
 
-        vcfR::write.vcf(vcf_hg38_obj, file = vcf_hg38_path)
+        # Write uncompressed VCF
+        temp_hg38_gz_path <- paste0(vcf_hg38_path, ".gz")
+        vcfR::write.vcf(vcf_hg38_obj, file = temp_hg38_gz_path)
+        system(sprintf("gunzip -f '%s'", temp_hg38_gz_path))
         cat(sprintf("Lifted VCF written to: %s\n", vcf_hg38_path))
 
         # Use the lifted VCF for the rest of the pipeline
@@ -313,17 +316,23 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         return(invisible(list(vus_df = data.frame(), note_df = data.frame())))
     }
 
-    # Write preprocessed VCF for KOIOS in output directory
+    # Write preprocessed VCF for KOIOS in output directory (uncompressed)
     preprocessed_vcf_filename <- sub("\\.vcf$", "_preprocessed.vcf", basename(vcf_path), ignore.case = TRUE)
     preprocessed_vcf_path <- file.path(output_dir, preprocessed_vcf_filename)
-    vcfR::write.vcf(preprocessed$snp_indel, file = preprocessed_vcf_path)
+
+    # Write uncompressed VCF by using a temp file and then gunzip
+    temp_gz_path <- paste0(preprocessed_vcf_path, ".gz")
+    vcfR::write.vcf(preprocessed$snp_indel, file = temp_gz_path)
+    system(sprintf("gunzip -f '%s'", temp_gz_path))
     cat(sprintf("Preprocessed VCF written to: %s\n\n", preprocessed_vcf_path))
 
-    # Optional: Write CNV to separate file for future processing
+    # Optional: Write CNV to separate file for future processing (uncompressed)
     if (!is.null(preprocessed$cnv) && nrow(preprocessed$cnv@fix) > 0) {
         cnv_vcf_filename <- sub("\\.vcf$", "_CNV.vcf", basename(vcf_path), ignore.case = TRUE)
         cnv_vcf_path <- file.path(output_dir, cnv_vcf_filename)
-        vcfR::write.vcf(preprocessed$cnv, file = cnv_vcf_path)
+        temp_cnv_gz_path <- paste0(cnv_vcf_path, ".gz")
+        vcfR::write.vcf(preprocessed$cnv, file = temp_cnv_gz_path)
+        system(sprintf("gunzip -f '%s'", temp_cnv_gz_path))
         cat(sprintf("CNV variants written to: %s\n\n", cnv_vcf_path))
     }
 
@@ -491,6 +500,92 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
 
     cat(sprintf("VUS CSV written to: %s\n", vus_csv_path))
     cat(sprintf("Note CSV written to: %s\n", note_csv_path))
-    
-    return(invisible(list(vus_df = vus_vrs_df, note_df = note_vrs_df)))
+
+    # --- 7. GENE-LEVEL MUTATION TABLE ---
+
+    # Extract gene name from concept_name (format: "GENE on GRCh38 chr...")
+    extract_gene <- function(concept_name) {
+        if (is.na(concept_name) || !nzchar(concept_name)) return(NA_character_)
+        # Try to extract gene name before " on GRCh38"
+        gene_match <- regmatches(concept_name, regexpr("^[^ ]+", concept_name))
+        if (length(gene_match) > 0) return(gene_match[1])
+        return(NA_character_)
+    }
+
+    variants_for_vrs$gene <- sapply(variants_for_vrs$concept_name, extract_gene)
+
+    # Aggregate mutations by gene
+    gene_table <- stats::aggregate(
+        cbind(n_mutations = rep(1, nrow(variants_for_vrs))) ~ gene + concept_id,
+        data = variants_for_vrs[!is.na(variants_for_vrs$gene), ],
+        FUN = length
+    )
+
+    # Sort by number of mutations (descending)
+    gene_table <- gene_table[order(-gene_table$n_mutations), ]
+
+    gene_table_path <- file.path(output_dir, paste0(output_base_name, "_GeneSummary.csv"))
+    utils::write.csv(gene_table, file = gene_table_path, row.names = FALSE, quote = FALSE)
+    cat(sprintf("Gene summary table written to: %s\n", gene_table_path))
+
+    # --- 8. FINAL ANNOTATED VCF ---
+
+    # Create final VCF with VRS and KOIOS annotations in INFO field
+    final_vcf <- preprocessed$snp_indel
+
+    # Add annotations to INFO field
+    for (i in seq_len(nrow(variants_for_vrs))) {
+        row <- variants_for_vrs[i, ]
+
+        # Find matching variant in VCF
+        vcf_idx <- which(
+            final_vcf@fix[, "CHROM"] == row$CHROM &
+            final_vcf@fix[, "POS"] == row$POS &
+            final_vcf@fix[, "REF"] == row$REF &
+            final_vcf@fix[, "ALT"] == row$ALT
+        )
+
+        if (length(vcf_idx) > 0) {
+            idx <- vcf_idx[1]
+
+            # Build INFO annotations
+            info_fields <- character(0)
+
+            if (!is.na(row$vrs_id) && nzchar(row$vrs_id)) {
+                info_fields <- c(info_fields, paste0("VRS_ID=", row$vrs_id))
+            }
+
+            if (!is.na(row$concept_id) && nzchar(row$concept_id)) {
+                info_fields <- c(info_fields, paste0("OMOP_CONCEPT=", row$concept_id))
+            }
+
+            if (!is.na(row$gene) && nzchar(row$gene)) {
+                info_fields <- c(info_fields, paste0("GENE=", row$gene))
+            }
+
+            if (!is.na(row$hgvsg) && nzchar(row$hgvsg)) {
+                info_fields <- c(info_fields, paste0("HGVSG=", row$hgvsg))
+            }
+
+            # Append to existing INFO or create new
+            existing_info <- final_vcf@fix[idx, "INFO"]
+            if (length(info_fields) > 0) {
+                new_info <- paste(info_fields, collapse = ";")
+                if (!is.na(existing_info) && nzchar(existing_info)) {
+                    final_vcf@fix[idx, "INFO"] <- paste(existing_info, new_info, sep = ";")
+                } else {
+                    final_vcf@fix[idx, "INFO"] <- new_info
+                }
+            }
+        }
+    }
+
+    # Write final annotated VCF (uncompressed)
+    final_vcf_path <- file.path(output_dir, paste0(output_base_name, "_annotated.vcf"))
+    temp_final_gz_path <- paste0(final_vcf_path, ".gz")
+    vcfR::write.vcf(final_vcf, file = temp_final_gz_path)
+    system(sprintf("gunzip -f '%s'", temp_final_gz_path))
+    cat(sprintf("Final annotated VCF written to: %s\n", final_vcf_path))
+
+    return(invisible(list(vus_df = vus_vrs_df, note_df = note_vrs_df, gene_table = gene_table)))
 }
