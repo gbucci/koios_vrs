@@ -11,8 +11,9 @@
 #' @param vcf_obj vcfR object to preprocess
 #' @param min_af Minimum allele frequency threshold (default: 0.01)
 #' @param min_dp Minimum read depth threshold (default: 100)
+#' @param min_fao Minimum filtered allele observation (default: 10)
 #' @return List with 'snp_indel' vcfR object and 'cnv' vcfR object
-preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
+preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100, min_fao = 10) {
 
     cat("\n=== VCF PREPROCESSING ===\n")
 
@@ -53,13 +54,25 @@ preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
         return(NA_real_)
     })
 
+    # Extract FAO values (maximum across alleles for multi-allelic)
+    fao_vals <- sapply(info, function(x) {
+        fao_match <- regmatches(x, regexec("FAO=([0-9,]+)", x))
+        if (length(fao_match[[1]]) > 1) {
+            faos <- as.numeric(strsplit(fao_match[[1]][2], ",")[[1]])
+            return(max(faos, na.rm = TRUE))
+        }
+        return(NA_real_)
+    })
+
     # Apply filters
     pass_af <- is.na(af_vals) | af_vals >= min_af
     pass_dp <- is.na(dp_vals) | dp_vals >= min_dp
-    filter_pass <- pass_af & pass_dp
+    pass_fao <- is.na(fao_vals) | fao_vals >= min_fao
+    filter_pass <- pass_af & pass_dp & pass_fao
 
     cat(sprintf("  Removed %d variants with AF < %.1f%%\n", sum(!pass_af), min_af * 100))
     cat(sprintf("  Removed %d variants with DP < %d\n", sum(!pass_dp), min_dp))
+    cat(sprintf("  Removed %d variants with FAO < %d\n", sum(!pass_fao), min_fao))
 
     keep_idx[keep_idx] <- filter_pass
 
@@ -78,14 +91,46 @@ preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
     cnv_idx <- which(keep_idx)[is_cnv]
 
     if (length(snp_indel_idx) > 0) {
-        # For SNP/INDEL: select allele with highest FAO or AF
+        # For SNP/INDEL: select allele with highest FAO or AF and remove other alleles
         snp_fix <- fix[snp_indel_idx, , drop = FALSE]
         snp_gt <- gt[snp_indel_idx, , drop = FALSE]
-        snp_info <- snp_fix[, "INFO"]
 
-        # Extract FAO (Filtered Allele Observation)
-        fao_vals <- sapply(snp_info, function(x) {
-            fao_match <- regmatches(x, regexec("FAO=([0-9,]+)", x))
+        # Process each variant to keep only the best allele
+        n_multi_allelic <- 0
+        for (i in seq_len(nrow(snp_fix))) {
+            alt_str <- snp_fix[i, "ALT"]
+            alts <- strsplit(alt_str, ",")[[1]]
+
+            # If multi-allelic, select best allele
+            if (length(alts) > 1) {
+                n_multi_allelic <- n_multi_allelic + 1
+                info_str <- snp_fix[i, "INFO"]
+
+                # Extract FAO values for each allele
+                fao_match <- regmatches(info_str, regexec("FAO=([0-9,]+)", info_str))
+                if (length(fao_match[[1]]) > 1) {
+                    faos <- as.numeric(strsplit(fao_match[[1]][2], ",")[[1]])
+
+                    # Find allele with maximum FAO
+                    if (length(faos) == length(alts)) {
+                        best_idx <- which.max(faos)
+                        best_alt <- alts[best_idx]
+
+                        # Update ALT field to contain only the best allele
+                        snp_fix[i, "ALT"] <- best_alt
+
+                        # Note: We keep the INFO field as-is because it's complex to modify
+                        # KOIOS will handle the multi-allelic INFO fields
+                    }
+                }
+            }
+        }
+
+        # Now remove duplicate positions (keeping first which has highest FAO due to sorting)
+        # Extract FAO for sorting
+        fao_vals <- sapply(seq_len(nrow(snp_fix)), function(i) {
+            info_str <- snp_fix[i, "INFO"]
+            fao_match <- regmatches(info_str, regexec("FAO=([0-9,]+)", info_str))
             if (length(fao_match[[1]]) > 1) {
                 faos <- as.numeric(strsplit(fao_match[[1]][2], ",")[[1]])
                 return(max(faos, na.rm = TRUE))
@@ -109,7 +154,8 @@ preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
         snp_gt <- snp_gt[keep_dedup, , drop = FALSE]
 
         n_after_dedup <- nrow(snp_fix)
-        cat(sprintf("  Removed %d alternative alleles (kept most representative)\n",
+        cat(sprintf("  Processed %d multi-allelic variants\n", n_multi_allelic))
+        cat(sprintf("  Removed %d duplicate positions (kept allele with highest FAO)\n",
                     n_before_dedup - n_after_dedup))
 
         # Create SNP/INDEL vcfR object
@@ -140,6 +186,237 @@ preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
     return(list(snp_indel = snp_vcf, cnv = cnv_vcf))
 }
 
+#' Convert Three-Letter to Single-Letter Amino Acid Code
+#'
+#' Converts three-letter amino acid codes to single-letter codes
+#'
+#' @param three_letter Three-letter amino acid code
+#' @return Single-letter amino acid code
+three_to_one_aa <- function(three_letter) {
+    aa_map <- c(
+        "Ala" = "A", "Arg" = "R", "Asn" = "N", "Asp" = "D",
+        "Cys" = "C", "Gln" = "Q", "Glu" = "E", "Gly" = "G",
+        "His" = "H", "Ile" = "I", "Leu" = "L", "Lys" = "K",
+        "Met" = "M", "Phe" = "F", "Pro" = "P", "Ser" = "S",
+        "Thr" = "T", "Trp" = "W", "Tyr" = "Y", "Val" = "V",
+        "Ter" = "*", "Stop" = "*"
+    )
+
+    if (three_letter %in% names(aa_map)) {
+        return(aa_map[three_letter])
+    }
+    return(NA_character_)
+}
+
+#' Convert Single-Letter to Three-Letter Amino Acid Code
+#'
+#' Converts single-letter amino acid codes to three-letter codes
+#'
+#' @param one_letter Single-letter amino acid code
+#' @return Three-letter amino acid code
+one_to_three_aa <- function(one_letter) {
+    aa_map <- c(
+        "A" = "Ala", "R" = "Arg", "N" = "Asn", "D" = "Asp",
+        "C" = "Cys", "Q" = "Gln", "E" = "Glu", "G" = "Gly",
+        "H" = "His", "I" = "Ile", "L" = "Leu", "K" = "Lys",
+        "M" = "Met", "F" = "Phe", "P" = "Pro", "S" = "Ser",
+        "T" = "Thr", "W" = "Trp", "Y" = "Tyr", "V" = "Val",
+        "*" = "Ter"
+    )
+
+    if (one_letter %in% names(aa_map)) {
+        return(aa_map[one_letter])
+    }
+    return(NA_character_)
+}
+
+#' Extract Protein HGVS Annotations from VCF FUNC Field
+#'
+#' Extracts protein annotations from the FUNC field in VCF INFO column.
+#' Generates both three-letter and single-letter HGVS protein notations.
+#'
+#' @param vcf_df Data frame with VCF data including INFO column
+#' @return Data frame with added hgvsp_3letter and hgvsp_1letter columns
+extract_protein_hgvs <- function(vcf_df) {
+    if (!"INFO" %in% names(vcf_df)) {
+        vcf_df$hgvsp_3letter <- NA_character_
+        vcf_df$hgvsp_1letter <- NA_character_
+        vcf_df$allele_frequency <- NA_real_
+        return(vcf_df)
+    }
+
+    hgvsp_3letter <- character(nrow(vcf_df))
+    hgvsp_1letter <- character(nrow(vcf_df))
+    allele_frequency <- numeric(nrow(vcf_df))
+
+    for (i in seq_len(nrow(vcf_df))) {
+        info_field <- vcf_df$INFO[i]
+
+        if (is.na(info_field) || !nzchar(info_field)) {
+            hgvsp_3letter[i] <- NA_character_
+            hgvsp_1letter[i] <- NA_character_
+            allele_frequency[i] <- NA_real_
+            next
+        }
+
+        # Extract AF (Allele Frequency)
+        af_match <- regmatches(info_field, regexec("AF=([0-9.,]+)", info_field))
+        if (length(af_match[[1]]) > 1) {
+            # Get all AF values (comma-separated for multi-allelic)
+            afs <- as.numeric(strsplit(af_match[[1]][2], ",")[[1]])
+            allele_frequency[i] <- max(afs, na.rm = TRUE)  # Take maximum AF
+        } else {
+            allele_frequency[i] <- NA_real_
+        }
+
+        # Extract FUNC field which contains protein annotation
+        # Use a greedy pattern to capture everything between FUNC=[ and the closing ]
+        func_match <- regmatches(info_field, regexpr("FUNC=\\[.*\\]", info_field))
+
+        if (length(func_match) > 0) {
+            func_str <- func_match[1]
+
+            # Extract protein field (e.g., 'protein':'p.Leu858Arg')
+            protein_match <- regmatches(func_str, regexpr("'protein':'(p\\.[^']+)'", func_str, perl = TRUE))
+
+            if (length(protein_match) > 0) {
+                # Extract p.Leu858Arg format (remove 'protein':' prefix and trailing ')
+                protein_str <- sub("'protein':'", "", protein_match[1])
+                protein_str <- sub("'$", "", protein_str)  # Remove trailing quote if present
+
+                # This is already in three-letter format
+                hgvsp_3letter[i] <- protein_str
+
+                # Convert to single-letter format
+                # Parse the protein change (e.g., p.Leu858Arg)
+                if (grepl("^p\\.", protein_str)) {
+                    # Extract components using regex
+                    # Pattern: p.Xxx###Yyy or p.Xxx###fs, p.Xxx###del, etc.
+
+                    # Handle substitutions (e.g., p.Leu858Arg)
+                    if (grepl("^p\\.[A-Z][a-z]{2}[0-9]+[A-Z][a-z]{2}$", protein_str)) {
+                        ref_aa <- sub("^p\\.([A-Z][a-z]{2}).*", "\\1", protein_str)
+                        pos <- sub("^p\\.[A-Z][a-z]{2}([0-9]+).*", "\\1", protein_str)
+                        alt_aa <- sub("^p\\.[A-Z][a-z]{2}[0-9]+(.*)", "\\1", protein_str)
+
+                        ref_aa_1 <- three_to_one_aa(ref_aa)
+                        alt_aa_1 <- three_to_one_aa(alt_aa)
+
+                        if (!is.na(ref_aa_1) && !is.na(alt_aa_1)) {
+                            hgvsp_1letter[i] <- sprintf("p.%s%s%s", ref_aa_1, pos, alt_aa_1)
+                        } else {
+                            hgvsp_1letter[i] <- NA_character_
+                        }
+                    } else {
+                        # Keep as is for complex variants (del, ins, dup, fs, etc.)
+                        hgvsp_1letter[i] <- protein_str
+                    }
+                } else {
+                    hgvsp_1letter[i] <- NA_character_
+                }
+            } else {
+                hgvsp_3letter[i] <- NA_character_
+                hgvsp_1letter[i] <- NA_character_
+            }
+        } else {
+            hgvsp_3letter[i] <- NA_character_
+            hgvsp_1letter[i] <- NA_character_
+        }
+    }
+
+    vcf_df$hgvsp_3letter <- hgvsp_3letter
+    vcf_df$hgvsp_1letter <- hgvsp_1letter
+    vcf_df$allele_frequency <- allele_frequency
+
+    return(vcf_df)
+}
+
+#' Prompt User for Clinical Metadata Interactively
+#'
+#' Prompts the user to enter clinical metadata for a sample when CSV file is missing.
+#' Works in both interactive R sessions and Rscript mode.
+#'
+#' @param sample_id The sample ID from the VCF file
+#' @return A data frame with clinical metadata
+prompt_clinical_data <- function(sample_id) {
+    cat("\n=== CLINICAL METADATA REQUIRED ===\n")
+    cat(sprintf("Sample ID: %s\n\n", sample_id))
+
+    # Check if running interactively
+    is_interactive <- interactive()
+
+    if (!is_interactive) {
+        cat("ERROR: Clinical metadata CSV file not found.\n")
+        cat(sprintf("Please create a CSV file with the following format:\n"))
+        cat(sprintf("Location: Same directory as VCF, named '{vcf_basename}.csv'\n\n"))
+        cat("Required columns:\n")
+        cat("  sample_id,diagnosis_label,diagnosis_ncit_id,sex_label,sex_pato_id,age_of_onset_iso\n\n")
+        cat("Example:\n")
+        cat(sprintf("  %s,Lung Cancer,NCIT:C7377,MALE,PATO:0000384,P45Y\n\n", sample_id))
+        cat("Common sex values:\n")
+        cat("  MALE: PATO:0000384\n")
+        cat("  FEMALE: PATO:0000383\n\n")
+        cat("Age format: P{years}Y (e.g., P45Y for 45 years old)\n\n")
+        cat("Once the CSV file is created, run the pipeline again.\n")
+        stop("Clinical metadata CSV file required but not found. Cannot prompt in non-interactive mode.")
+    }
+
+    # Interactive mode - use readline
+    cat("CSV file not found. Please enter clinical data interactively:\n\n")
+
+    # Diagnosis
+    diagnosis_label <- readline(prompt = "Enter diagnosis label (e.g., 'Lung Cancer'): ")
+    if (!nzchar(diagnosis_label)) {
+        stop("Diagnosis label is required")
+    }
+
+    diagnosis_ncit_id <- readline(prompt = "Enter diagnosis NCIT ID (e.g., 'NCIT:C7377'): ")
+    if (!nzchar(diagnosis_ncit_id)) {
+        stop("Diagnosis NCIT ID is required")
+    }
+
+    # Sex
+    cat("\nSex options:\n")
+    cat("  1. MALE (PATO:0000384)\n")
+    cat("  2. FEMALE (PATO:0000383)\n")
+    sex_choice <- readline(prompt = "Select sex (1 or 2): ")
+
+    if (sex_choice == "1") {
+        sex_label <- "MALE"
+        sex_pato_id <- "PATO:0000384"
+    } else if (sex_choice == "2") {
+        sex_label <- "FEMALE"
+        sex_pato_id <- "PATO:0000383"
+    } else {
+        sex_label <- readline(prompt = "Enter sex label: ")
+        sex_pato_id <- readline(prompt = "Enter sex PATO ID: ")
+    }
+
+    # Age of onset
+    age_of_onset <- readline(prompt = "Enter age of onset in years (e.g., '45'): ")
+    if (!nzchar(age_of_onset)) {
+        stop("Age of onset is required")
+    }
+    age_of_onset_iso <- sprintf("P%sY", age_of_onset)
+
+    # Create data frame
+    clinical_data <- data.frame(
+        sample_id = sample_id,
+        diagnosis_label = diagnosis_label,
+        diagnosis_ncit_id = diagnosis_ncit_id,
+        sex_label = sex_label,
+        sex_pato_id = sex_pato_id,
+        age_of_onset_iso = age_of_onset_iso,
+        stringsAsFactors = FALSE
+    )
+
+    cat("\n=== CLINICAL METADATA SUMMARY ===\n")
+    print(clinical_data)
+    cat("\n")
+
+    return(clinical_data)
+}
+
 #' KOIOS and VRS Pipeline for Cancer Variants
 #'
 #' Processes a VCF file, enriches it with KOIOS (HGVSg, ClinGen, OMOP),
@@ -151,14 +428,15 @@ preprocess_vcf <- function(vcf_obj, min_af = 0.01, min_dp = 100) {
 #' @param ref_genome Reference genome of input VCF: "hg19" or "hg38" (default: "hg38").
 #' @param af_threshold Allele Frequency threshold for filtering (default: 0.01 or 1%). Variants with population AF > threshold are excluded.
 #' @param min_dp Minimum read depth for variant quality filtering (default: 100).
+#' @param min_fao Minimum filtered allele observation for variant quality filtering (default: 10).
 #' @param input_dir Input directory containing VCF and clinical CSV files (default: "input").
 #' @param output_dir Output directory for all generated files (default: "output").
 #' @param default_vus_id OMOP Concept ID for Variant of Unknown Significance (default: 1028197L).
 #' @return A list containing the VUS and Note dataframes, invisibly. Writes output files to disk.
 #' @export
-koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", af_threshold = 0.01, min_dp = 100,
-                                input_dir = "input", output_dir = "output", default_vus_id = 1028197L) {
-    
+koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", af_threshold = NULL, min_dp = NULL, min_fao = NULL,
+                                input_dir = "input", output_dir = "output", default_vus_id = 1028197L, auto_detect_platform = TRUE) {
+
     # --- 1. SETUP AND INPUT VALIDATION ---
 
     # Create output directory if it doesn't exist
@@ -182,32 +460,59 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         }
     }
 
-    # Find clinical CSV (same base name as VCF)
+    # --- 1.1. PLATFORM DETECTION ---
+    if (auto_detect_platform) {
+        source("R/platform_detection.R")
+        platform_info <- detect_sequencing_platform(vcf_path)
+        print_platform_summary(platform_info)
+
+        # Use platform-specific parameters if not explicitly provided
+        if (is.null(af_threshold)) {
+            af_threshold <- platform_info$params$min_af
+        }
+        if (is.null(min_dp)) {
+            min_dp <- platform_info$params$min_dp
+        }
+        if (is.null(min_fao)) {
+            min_fao <- ifelse(is.na(platform_info$params$min_fao), 10, platform_info$params$min_fao)
+        }
+    } else {
+        # Use defaults if auto-detection is disabled
+        if (is.null(af_threshold)) af_threshold <- 0.01
+        if (is.null(min_dp)) min_dp <- 100
+        if (is.null(min_fao)) min_fao <- 10
+    }
+
+    # 1.2. Get Sample ID from VCF (must be done BEFORE clinical CSV check)
+    vcf_obj <- vcfR::read.vcfR(vcf_path, verbose = FALSE)
+    sample_names <- colnames(vcf_obj@gt)[-1]
+    if (length(sample_names) != 1) {
+        stop("VCF must contain exactly one sample column. Found: ", length(sample_names))
+    }
+    sample_id <- sample_names[1]
+
+    # 1.3. Find and load clinical CSV (same base name as VCF)
     vcf_basename <- basename(vcf_path)
     csv_basename <- sub("\\.vcf$", ".csv", vcf_basename, ignore.case = TRUE)
     clinical_csv_path <- file.path(dirname(vcf_path), csv_basename)
 
     if (!file.exists(clinical_csv_path)) {
-        stop(sprintf("Clinical metadata file not found: %s", clinical_csv_path))
-    }
-    
-    # 1.1. Get Sample ID from VCF
-    vcf_obj <- vcfR::read.vcfR(vcf_path, verbose = FALSE)
-    sample_names <- colnames(vcf_obj@gt)[-1] 
-    if (length(sample_names) != 1) {
-        stop("VCF must contain exactly one sample column. Found: ", length(sample_names))
-    }
-    sample_id <- sample_names[1]
-    
-    # 1.2. Load Clinical Metadata
-    clinical_data <- utils::read.csv(clinical_csv_path, stringsAsFactors = FALSE)
-    clinical_data <- clinical_data[clinical_data$sample_id == sample_id, ]
-    
-    if (nrow(clinical_data) != 1) {
-        stop("Clinical metadata not found or does not correspond to the VCF sample ID in the CSV.")
+        cat(sprintf("Clinical metadata file not found: %s\n", clinical_csv_path))
+        clinical_data <- prompt_clinical_data(sample_id)
+        # Write to CSV for future use
+        utils::write.csv(clinical_data, file = clinical_csv_path, row.names = FALSE, quote = TRUE)
+        cat(sprintf("Clinical metadata saved to: %s\n", clinical_csv_path))
+    } else {
+        # Load Clinical Metadata
+        clinical_data <- utils::read.csv(clinical_csv_path, stringsAsFactors = FALSE)
+        clinical_data <- clinical_data[clinical_data$sample_id == sample_id, ]
+
+        if (nrow(clinical_data) != 1) {
+            stop("Clinical metadata not found or does not correspond to the VCF sample ID in the CSV.")
+        }
     }
 
-    # --- 1.3. LIFTOVER FROM HG19 TO HG38 IF NEEDED ---
+    # --- 1.4. LIFTOVER FROM HG19 TO HG38 IF NEEDED ---
 
     if (ref_genome == "hg19") {
         cat("Input VCF is hg19. Performing liftOver to hg38...\n")
@@ -306,10 +611,10 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         vcf_obj <- vcfR::read.vcfR(vcf_path, verbose = FALSE)
     }
 
-    # --- 1.4. VCF PREPROCESSING ---
+    # --- 1.5. VCF PREPROCESSING ---
 
     # Preprocess VCF: filter quality, remove multi-allelic, separate CNV
-    preprocessed <- preprocess_vcf(vcf_obj, min_af = af_threshold, min_dp = min_dp)
+    preprocessed <- preprocess_vcf(vcf_obj, min_af = af_threshold, min_dp = min_dp, min_fao = min_fao)
 
     if (is.null(preprocessed$snp_indel) || nrow(preprocessed$snp_indel@fix) == 0) {
         warning("No SNP/INDEL variants remained after preprocessing. Skipping KOIOS processing.")
@@ -336,23 +641,62 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         cat(sprintf("CNV variants written to: %s\n\n", cnv_vcf_path))
     }
 
-    # --- 2. KOIOS PROCESSING ---
+    # --- 2. EXTRACT PROTEIN HGVS ANNOTATIONS FROM ORIGINAL VCF ---
+
+    # Extract protein annotations from the preprocessed VCF BEFORE KOIOS processing
+    # (KOIOS processVCF does not preserve the INFO field)
+    cat("\n=== EXTRACTING PROTEIN HGVS ANNOTATIONS ===\n")
+    preprocessed_vcf_obj <- vcfR::read.vcfR(preprocessed_vcf_path, verbose = FALSE)
+
+    # Create temporary data frame with VCF data for annotation extraction
+    # Note: After preprocessing, ALT field should contain only one allele per variant
+    # but we still check for multi-allelic variants just in case
+    temp_vcf_df <- data.frame(
+        CHROM = preprocessed_vcf_obj@fix[, "CHROM"],
+        POS = preprocessed_vcf_obj@fix[, "POS"],
+        REF = preprocessed_vcf_obj@fix[, "REF"],
+        ALT = preprocessed_vcf_obj@fix[, "ALT"],
+        INFO = preprocessed_vcf_obj@fix[, "INFO"],
+        stringsAsFactors = FALSE
+    )
+
+    # Extract protein annotations
+    temp_vcf_df <- extract_protein_hgvs(temp_vcf_df)
+    n_with_protein <- sum(!is.na(temp_vcf_df$hgvsp_3letter))
+    cat(sprintf("Found protein annotations for %d/%d variants (post-explosion)\n\n", n_with_protein, nrow(temp_vcf_df)))
+
+    # --- 3. KOIOS PROCESSING ---
 
     cat("=== KOIOS PROCESSING ===\n")
     concepts <- KOIOS::loadConcepts()
     vcf <- KOIOS::loadVCF(userVCF = preprocessed_vcf_path)  # Use preprocessed VCF
     ref.df <- KOIOS::loadReference("hg38")
-    
+
     vcf.df <- KOIOS::processVCF(vcf)
     vcf.df <- KOIOS::generateHGVSG(vcf = vcf.df, ref = ref.df)
     vcf.df <- KOIOS::processClinGen(vcf.df, ref = "hg38", progressBar = FALSE)
     vcf.df <- KOIOS::addConcepts(vcf.df, concepts, returnAll = FALSE)
-    
+
     default_vus_name <- "Variant of unknown significance"
     vcf.df$concept_id[is.na(vcf.df$concept_id)] <- default_vus_id
     vcf.df$concept_name[is.na(vcf.df$concept_name) | !nzchar(vcf.df$concept_name)] <- default_vus_name
 
-    # --- 3. POST-KOIOS FILTERING ---
+    # --- 3.1. MERGE PROTEIN ANNOTATIONS WITH KOIOS DATA ---
+    cat("\n=== MERGING PROTEIN ANNOTATIONS ===\n")
+
+    # Merge by chromosome, position, ref, and alt
+    vcf.df <- merge(
+        vcf.df,
+        temp_vcf_df[, c("CHROM", "POS", "REF", "ALT", "hgvsp_3letter", "hgvsp_1letter", "allele_frequency")],
+        by = c("CHROM", "POS", "REF", "ALT"),
+        all.x = TRUE,
+        sort = FALSE
+    )
+
+    n_merged <- sum(!is.na(vcf.df$hgvsp_3letter))
+    cat(sprintf("Merged protein annotations for %d/%d variants\n\n", n_merged, nrow(vcf.df)))
+
+    # --- 4. POST-KOIOS FILTERING ---
     # Note: Quality filtering, CNV removal, and multi-allelic resolution already done in preprocessing
 
     # Optional: Additional population frequency filtering based on gnomAD
@@ -373,7 +717,7 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
         return(invisible(list(vus_df = data.frame(), note_df = data.frame())))
     }
 
-    # --- 4. VRS QUERY ---
+    # --- 5. VRS QUERY ---
     
     # Helper: VRS API fetch function
     fetch_vrs_fields <- function(hgvs, retries = 3, timeout_sec = 10) {
@@ -427,34 +771,54 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     variants_for_vrs$vrs_id <- out[, "vrs_id"]
     variants_for_vrs$vrs_seq_id <- out[, "vrs_seq_id"]
 
-    # --- 5. PHENOPACKETS JSON GENERATION ---
+    # --- 6. PHENOPACKETS JSON GENERATION ---
 
     generate_phenopacket <- function(row_data, clinical_data, vcf_filename) {
         vrs_id <- row_data[["vrs_id"]]
         omop_concept_name <- row_data[["concept_name"]]
         omop_concept_id <- row_data[["concept_id"]]
         hgvsg <- row_data[["hgvsg"]]
+        hgvsp_3letter <- row_data[["hgvsp_3letter"]]
+        hgvsp_1letter <- row_data[["hgvsp_1letter"]]
+        allele_frequency <- row_data[["allele_frequency"]]
         sample_id <- clinical_data$sample_id
-        
+
         meta_data <- list(
             "phenopacketSchemaVersion" = "2.0",
             "resource" = list(list("id" = "omop_genomic_vocab", "name" = "OMOP Genomic Vocabulary", "namespacePrefix" = "OMOP", "url" = "https://example.com/omop", "version" = "2024", "capability" = "knowledge")),
             "submittedBy" = "KOIOS-VRS-Pipeline"
         )
-        
+
         subject <- list(
             "id" = sample_id,
-            "sex" = list("label" = clinical_data$sex_label, "id" = clinical_data$sex_pato_id), 
+            "sex" = list("label" = clinical_data$sex_label, "id" = clinical_data$sex_pato_id),
             "ageOfOnsetToPhenoPacket" = clinical_data$age_of_onset_iso
         )
-        
+
+        # Build extensions list
+        extensions <- list(
+            list("id" = "omop_classification", "value" = omop_concept_name, "type" = "string", "ontologyClass" = list("id" = omop_concept_id, "label" = omop_concept_name)),
+            list("id" = "hgvs_g", "value" = hgvsg, "type" = "string")
+        )
+
+        # Add allele frequency if available
+        if (!is.null(allele_frequency) && length(allele_frequency) > 0 && !is.na(allele_frequency)) {
+            extensions <- c(extensions, list(list("id" = "allele_frequency", "value" = allele_frequency, "type" = "number")))
+        }
+
+        # Add protein HGVS annotations if available
+        if (!is.na(hgvsp_3letter) && nzchar(hgvsp_3letter)) {
+            extensions <- c(extensions, list(list("id" = "hgvs_p_3letter", "value" = hgvsp_3letter, "type" = "string")))
+        }
+
+        if (!is.na(hgvsp_1letter) && nzchar(hgvsp_1letter)) {
+            extensions <- c(extensions, list(list("id" = "hgvs_p_1letter", "value" = hgvsp_1letter, "type" = "string")))
+        }
+
         variant_interpretation <- list(
             "id" = paste0(sample_id, "_", row_data[["CHROM"]], "_", row_data[["POS"]]),
             "vrsAllele" = list("id" = vrs_id, "type" = "Allele"),
-            "extensions" = list(
-                list("id" = "omop_classification", "value" = omop_concept_name, "type" = "string", "ontologyClass" = list("id" = omop_concept_id, "label" = omop_concept_name)),
-                list("id" = "hgvs_g", "value" = hgvsg, "type" = "string")
-            )
+            "extensions" = extensions
         )
         
         interpretations <- list(
@@ -487,7 +851,7 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     jsonlite::write_json(phenopacket_list, phenopackets_path, pretty = TRUE, auto_unbox = TRUE)
     cat(sprintf("Phenopackets written to: %s\n", phenopackets_path))
 
-    # --- 6. CSV EXPORT (VUS and Note) ---
+    # --- 7. CSV EXPORT (VUS and Note) ---
 
     vus_vrs_df <- variants_for_vrs[variants_for_vrs$concept_id == default_vus_id, ]
     note_vrs_df <- variants_for_vrs[variants_for_vrs$concept_id != default_vus_id, ]
@@ -501,7 +865,7 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     cat(sprintf("VUS CSV written to: %s\n", vus_csv_path))
     cat(sprintf("Note CSV written to: %s\n", note_csv_path))
 
-    # --- 7. GENE-LEVEL MUTATION TABLE ---
+    # --- 8. GENE-LEVEL MUTATION TABLE ---
 
     # Extract gene name from concept_name (format: "GENE on GRCh38 chr...")
     extract_gene <- function(concept_name) {
@@ -528,7 +892,7 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     utils::write.csv(gene_table, file = gene_table_path, row.names = FALSE, quote = FALSE)
     cat(sprintf("Gene summary table written to: %s\n", gene_table_path))
 
-    # --- 8. FINAL ANNOTATED VCF ---
+    # --- 9. FINAL ANNOTATED VCF ---
 
     # Create final VCF with VRS and KOIOS annotations in INFO field
     final_vcf <- preprocessed$snp_indel
@@ -565,6 +929,14 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
 
             if (!is.na(row$hgvsg) && nzchar(row$hgvsg)) {
                 info_fields <- c(info_fields, paste0("HGVSG=", row$hgvsg))
+            }
+
+            if (!is.na(row$hgvsp_3letter) && nzchar(row$hgvsp_3letter)) {
+                info_fields <- c(info_fields, paste0("HGVSP_3=", row$hgvsp_3letter))
+            }
+
+            if (!is.na(row$hgvsp_1letter) && nzchar(row$hgvsp_1letter)) {
+                info_fields <- c(info_fields, paste0("HGVSP_1=", row$hgvsp_1letter))
             }
 
             # Append to existing INFO or create new
