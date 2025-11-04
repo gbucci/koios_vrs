@@ -1,5 +1,8 @@
 # KOIOS-VRS Pipeline with Platform Detection
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17476991.svg)](https://doi.org/10.5281/zenodo.17476991)
+
+
 Multi-platform genomic variant annotation pipeline integrating KOIOS, VRS, and Phenopackets v2.
 
 ## Features
