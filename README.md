@@ -498,13 +498,20 @@ If you use this pipeline in your research, please cite:
 
 ```
 @software{koios_vrs_pipeline,
-  author = {Your Name},
+  author = {Bucci, Gabriele and Riba, Michela and Scicolone, Guido and Tajwar, Muhammad},
   title = {KOIOS-VRS Pipeline: Multi-platform Genomic Variant Annotation},
   year = {2024},
   doi = {10.5281/zenodo.17476991},
-  url = {https://github.com/YOUR_USERNAME/koios_vrs}
+  url = {https://github.com/gbucci/koios_vrs}
 }
 ```
+
+### Authors
+
+- **Gabriele Bucci** - Lead Developer, Project Ideator
+- **Michela Riba** - Project Ideator
+- **Guido Scicolone** - Developer, Project Ideator
+- **Muhammad Tajwar** - Developer
 
 ---
 
@@ -533,6 +540,14 @@ For issues, questions, or feature requests:
 ---
 
 ## Acknowledgments
+
+### Funding and Support
+
+This project is supported by:
+- **DigiOne I3 WP4** - Digital Oncology Innovation Initiative, Work Package 4
+- **IRCCS Ospedale San Raffaele** - Scientific Institute for Research, Hospitalization and Healthcare
+
+### Software and Standards
 
 - **KOIOS**: OMOP-based genomic variant annotation
 - **VRS**: GA4GH Variant Representation Specification

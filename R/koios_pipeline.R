@@ -1,4 +1,26 @@
 # koios_pipeline.R
+#
+# KOIOS-VRS Pipeline: Multi-platform Genomic Variant Annotation
+#
+# Authors:
+#   - Gabriele Bucci (Lead Developer, Project Ideator)
+#   - Michela Riba (Project Ideator)
+#   - Guido Scicolone (Developer, Project Ideator)
+#   - Muhammad Tajwar (Developer)
+#
+# Funding and Support:
+#   - DigiOne I3 WP4 (Digital Oncology Innovation Initiative, Work Package 4)
+#   - IRCCS Ospedale San Raffaele
+#
+# License: MIT
+# DOI: 10.5281/zenodo.17476991
+# URL: https://github.com/gbucci/koios_vrs
+#
+# Description:
+#   Multi-platform genomic variant annotation pipeline integrating KOIOS, VRS,
+#   and Phenopackets v2 with automatic platform detection and protein HGVS annotations.
+#
+################################################################################
 
 #' Preprocess VCF: Normalize, Filter, and Separate Variants
 #'

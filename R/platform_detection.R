@@ -1,5 +1,20 @@
 # platform_detection.R
-# Functions to detect sequencing platform and adjust processing parameters
+#
+# KOIOS-VRS Pipeline: Platform Detection Module
+#
+# Authors:
+#   - Gabriele Bucci (Lead Developer, Project Ideator)
+#   - Michela Riba (Project Ideator)
+#   - Guido Scicolone (Developer, Project Ideator)
+#   - Muhammad Tajwar (Developer)
+#
+# Part of: KOIOS-VRS Pipeline (https://github.com/gbucci/koios_vrs)
+#
+# Description:
+#   Functions to detect sequencing platform (Ion Torrent, Illumina, etc.)
+#   from VCF header metadata and adjust processing parameters accordingly.
+#
+################################################################################
 
 #' Detect Sequencing Platform from VCF Header
 #'

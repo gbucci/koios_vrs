@@ -1,11 +1,24 @@
 #!/usr/bin/env Rscript
-
-#' Create Clinical Metadata CSV Helper Script
-#'
-#' This script helps create a clinical metadata CSV file for the KOIOS-VRS pipeline.
-#' Can be run in two modes:
-#' 1. Interactive: Run without arguments, will prompt for each field
-#' 2. Command-line: Pass arguments directly
+#
+# create_clinical_csv.R
+#
+# KOIOS-VRS Pipeline: Clinical Metadata CSV Helper
+#
+# Authors:
+#   - Gabriele Bucci (Lead Developer, Project Ideator)
+#   - Michela Riba (Project Ideator)
+#   - Guido Scicolone (Developer, Project Ideator)
+#   - Muhammad Tajwar (Developer)
+#
+# Part of: KOIOS-VRS Pipeline (https://github.com/gbucci/koios_vrs)
+#
+# Description:
+#   Helper script to create clinical metadata CSV files for the KOIOS-VRS pipeline.
+#   Can be run in two modes:
+#   1. Interactive: Run without arguments, will prompt for each field
+#   2. Command-line: Pass arguments directly
+#
+################################################################################
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
