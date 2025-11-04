@@ -18,6 +18,10 @@ Authors@R:
         person(given = "Guido",
             family = "Scicolone",
             role = "ctb"))
+        person(given = "Corrado",
+            family = "Masciullo",
+            role = "ctb"))
+
 Description: Processes cancer variants from VCF, enriches data using the KOIOS 
     framework (HGVSg, OMOP concepts), integrates VRS identifiers, applies 
     frequency filters (AF < 1%), and formats the output into Phenopackets v2 JSON 
