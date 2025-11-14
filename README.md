@@ -517,11 +517,42 @@ If you use this pipeline in your research, please cite:
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! We use a protected branching strategy to maintain stable releases on Zenodo.
 
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
+### Branching Strategy
+
+- **`main`** - Protected branch with stable, versioned releases (archived on Zenodo)
+- **`develop`** - Main development branch for collaboration
+- **`feature/*`** - Feature branches created from `develop`
+
+**Important**: The `main` branch is protected to preserve versioned releases. All development should happen on the `develop` branch or feature branches.
+
+### How to Contribute
+
+1. Clone the repository and checkout `develop`:
+   ```bash
+   git clone https://github.com/gbucci/koios_vrs.git
+   cd koios_vrs
+   git checkout develop
+   ```
+
+2. Create a feature branch:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+3. Make your changes and commit:
+   ```bash
+   git add .
+   git commit -m "Description of changes"
+   ```
+
+4. Push and create a pull request to `develop`:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
