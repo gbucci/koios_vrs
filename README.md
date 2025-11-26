@@ -512,6 +512,7 @@ If you use this pipeline in your research, please cite:
 - **Michela Riba** - Project Ideator
 - **Guido Scicolone** - Developer, Project Ideator
 - **Muhammad Tajwar** - Developer
+- **Corrado Masciullo** - Developer
 
 ---
 
