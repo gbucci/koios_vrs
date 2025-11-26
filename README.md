@@ -498,7 +498,7 @@ If you use this pipeline in your research, please cite:
 
 ```
 @software{koios_vrs_pipeline,
-  author = {Bucci, Gabriele and Riba, Michela and Scicolone, Guido and Tajwar, Muhammad},
+  author = {Bucci, Gabriele and Riba, Michela and Scicolone, Guido and Tajwar, Muhammad and Masciullo, Corrado},
   title = {KOIOS-VRS Pipeline: Multi-platform Genomic Variant Annotation},
   year = {2024},
   doi = {10.5281/zenodo.17476991},
