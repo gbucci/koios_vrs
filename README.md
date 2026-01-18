@@ -75,7 +75,7 @@ devtools::install_github("CBIIT/KOIOS")
 ### Clone Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/koios_vrs.git
+git clone https://github.com/gbucci/koios_vrs.git
 cd koios_vrs
 ```
 
@@ -510,7 +510,7 @@ If you use this pipeline in your research, please cite:
 
 - **Gabriele Bucci** - Lead Developer, Project Ideator
 - **Michela Riba** - Project Ideator
-- **Guido Scicolone** - Developer, Project Ideator
+- **Guido Scicolone** - Developer
 - **Muhammad Tajwar** - Developer
 - **Corrado Masciullo** - Developer
 
@@ -559,7 +559,7 @@ For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the GPL3 License.
 
 ---
 
