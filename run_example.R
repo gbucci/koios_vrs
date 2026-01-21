@@ -28,7 +28,7 @@ koios_vrs_pipeline(
 cat("\n=== Pipeline completed successfully ===\n")
 cat("Output files generated in output/ directory:\n")
 cat("  - melanoma_output_VUS.csv (Variants of Unknown Significance)\n")
-cat("  - melanoma_output_Note.csv (Clinically significant variants)\n")
+cat("  - melanoma_output_Known.csv (Clinically significant variants)\n")
 cat("  - melanoma_output_Phenopackets.json (GA4GH Phenopackets v2)\n")
 cat("  - melanoma_output_GeneSummary.csv (Gene-level mutation summary)\n")
 cat("  - melanoma_output_annotated.vcf (Final annotated VCF)\n")
