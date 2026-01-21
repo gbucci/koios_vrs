@@ -443,7 +443,7 @@ prompt_clinical_data <- function(sample_id) {
 #'
 #' Processes a VCF file, enriches it with KOIOS (HGVSg, ClinGen, OMOP),
 #' queries the VRS API for VRS IDs, filters variants based on frequency,
-#' and generates Phenopackets v2 JSON output along with VUS/Note CSV files.
+#' and generates Phenopackets v2 JSON output along with VUS/Known CSV files.
 #'
 #' @param vcf_path Path to the input VCF file (hg19 or hg38). Can be absolute or relative to input_dir.
 #' @param output_base_name Base name for output files (e.g., 'patient_A' produces 'patient_A_VUS.csv', etc.).
@@ -454,7 +454,7 @@ prompt_clinical_data <- function(sample_id) {
 #' @param input_dir Input directory containing VCF and clinical CSV files (default: "input").
 #' @param output_dir Output directory for all generated files (default: "output").
 #' @param default_vus_id OMOP Concept ID for Variant of Unknown Significance (default: 1028197L).
-#' @return A list containing the VUS and Note dataframes, invisibly. Writes output files to disk.
+#' @return A list containing the VUS and Known dataframes, invisibly. Writes output files to disk.
 #' @export
 koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", af_threshold = NULL, min_dp = NULL, min_fao = NULL,
                                 input_dir = "input", output_dir = "output", default_vus_id = 1028197L, auto_detect_platform = TRUE) {
@@ -873,19 +873,19 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     jsonlite::write_json(phenopacket_list, phenopackets_path, pretty = TRUE, auto_unbox = TRUE)
     cat(sprintf("Phenopackets written to: %s\n", phenopackets_path))
 
-    # --- 7. CSV EXPORT (VUS and Note) ---
+    # --- 7. CSV EXPORT (VUS and Known) ---
 
     vus_vrs_df <- variants_for_vrs[variants_for_vrs$concept_id == default_vus_id, ]
-    note_vrs_df <- variants_for_vrs[variants_for_vrs$concept_id != default_vus_id, ]
+    known_vrs_df <- variants_for_vrs[variants_for_vrs$concept_id != default_vus_id, ]
 
     vus_csv_path <- file.path(output_dir, paste0(output_base_name, "_VUS.csv"))
-    note_csv_path <- file.path(output_dir, paste0(output_base_name, "_Note.csv"))
+    known_csv_path <- file.path(output_dir, paste0(output_base_name, "_Known.csv"))
 
     utils::write.csv(vus_vrs_df, file = vus_csv_path, row.names = FALSE, quote = FALSE)
-    utils::write.csv(note_vrs_df, file = note_csv_path, row.names = FALSE, quote = FALSE)
+    utils::write.csv(known_vrs_df, file = known_csv_path, row.names = FALSE, quote = FALSE)
 
     cat(sprintf("VUS CSV written to: %s\n", vus_csv_path))
-    cat(sprintf("Note CSV written to: %s\n", note_csv_path))
+    cat(sprintf("Known CSV written to: %s\n", known_csv_path))
 
     # --- 8. GENE-LEVEL MUTATION TABLE ---
 
@@ -981,5 +981,5 @@ koios_vrs_pipeline <- function(vcf_path, output_base_name, ref_genome = "hg38", 
     system(sprintf("gunzip -f '%s'", temp_final_gz_path))
     cat(sprintf("Final annotated VCF written to: %s\n", final_vcf_path))
 
-    return(invisible(list(vus_df = vus_vrs_df, note_df = note_vrs_df, gene_table = gene_table)))
+    return(invisible(list(vus_df = vus_vrs_df, known_df = known_vrs_df, gene_table = gene_table)))
 }

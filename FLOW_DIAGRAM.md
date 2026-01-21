@@ -1,190 +1,190 @@
-# KOIOS-VRS Pipeline - Diagramma di Flusso
+# KOIOS-VRS Pipeline - Flow Diagram
 
-## Panoramica del Flusso Principale
+## Main Pipeline Flow
 
 ```mermaid
 flowchart TD
-    Start([Inizio Pipeline]) --> Input[Input Files]
+    Start([Start Pipeline]) --> Input[Input Files]
 
-    Input --> VCF[File VCF<br/>hg19 o hg38]
-    Input --> Clinical[Dati Clinici CSV<br/>diagnosi, sesso, età]
+    Input --> VCF[VCF File<br/>hg19 or hg38]
+    Input --> Clinical[Clinical CSV<br/>diagnosis, sex, age]
 
-    VCF --> PlatformDetect{Rilevamento<br/>Piattaforma}
+    VCF --> PlatformDetect{Platform<br/>Detection}
 
-    PlatformDetect -->|Ion Torrent| IonParams[Parametri Ion Torrent<br/>AF≥1%, DP≥100, FAO≥10]
-    PlatformDetect -->|Illumina| IllParams[Parametri Illumina<br/>AF≥5%, DP≥50]
-    PlatformDetect -->|Altri| DefaultParams[Parametri Default]
+    PlatformDetect -->|Ion Torrent| IonParams[Ion Torrent Parameters<br/>AF≥1%, DP≥100, FAO≥10]
+    PlatformDetect -->|Illumina| IllParams[Illumina Parameters<br/>AF≥5%, DP≥50]
+    PlatformDetect -->|Others| DefaultParams[Default Parameters]
 
     IonParams --> Preprocess
     IllParams --> Preprocess
     DefaultParams --> Preprocess
 
-    Preprocess[Preprocessing VCF] --> LiftCheck{Genoma<br/>hg19?}
+    Preprocess[VCF Preprocessing] --> LiftCheck{Genome<br/>hg19?}
 
-    LiftCheck -->|Sì| Liftover[Liftover a hg38<br/>AnnotationHub]
+    LiftCheck -->|Yes| Liftover[Liftover to hg38<br/>AnnotationHub]
     LiftCheck -->|No| QualFilter
-    Liftover --> QualFilter[Filtri di Qualità]
+    Liftover --> QualFilter[Quality Filters]
 
-    QualFilter --> FilterSteps[• Rimuovi genotipi indefiniti<br/>• Filtra per AF<br/>• Filtra per DP<br/>• Filtra per FAO]
+    QualFilter --> FilterSteps[• Remove undefined genotypes<br/>• Filter by AF<br/>• Filter by DP<br/>• Filter by FAO]
 
-    FilterSteps --> MultiAllelic{Varianti<br/>Multi-alleliche?}
+    FilterSteps --> MultiAllelic{Multi-allelic<br/>Variants?}
 
-    MultiAllelic -->|Sì| SelectBest[Seleziona allele<br/>con FAO/AD massimo]
+    MultiAllelic -->|Yes| SelectBest[Select allele with<br/>maximum FAO/AD]
     MultiAllelic -->|No| SeparateTypes
     SelectBest --> SeparateTypes
 
-    SeparateTypes[Separazione Tipi] --> SNP[SNP/INDEL<br/>→ Pipeline principale]
-    SeparateTypes --> CNV[CNV<br/>→ File separato]
+    SeparateTypes[Type Separation] --> SNP[SNP/INDEL<br/>→ Main pipeline]
+    SeparateTypes --> CNV[CNV<br/>→ Separate file]
 
-    SNP --> Annotation[Annotazione KOIOS]
+    SNP --> Annotation[KOIOS Annotation]
 
-    Annotation --> AnnotSteps[• Carica concetti OMOP<br/>• Genera notazione HGVSg<br/>• Classifica ClinGen/ClinVar<br/>• Estrai HGVS proteico]
+    Annotation --> AnnotSteps[• Load OMOP concepts<br/>• Generate HGVSg notation<br/>• ClinGen/ClinVar classification<br/>• Extract protein HGVS]
 
-    AnnotSteps --> PopFilter[Filtro Popolazioni<br/>gnomAD AF > 1%]
+    AnnotSteps --> PopFilter[Population Filter<br/>gnomAD AF > 1%]
 
-    PopFilter --> VRS[Integrazione VRS]
+    PopFilter --> VRS[VRS Integration]
 
-    VRS --> VRSSteps[• Query VRS Registry API<br/>• Recupera VRS Allele IDs<br/>• Logica di retry<br/>• Aggiungi Sequence IDs]
+    VRS --> VRSSteps[• Query VRS Registry API<br/>• Fetch VRS Allele IDs<br/>• Retry logic<br/>• Add Sequence IDs]
 
     Clinical --> Phenopacket
-    VRSSteps --> Phenopacket[Generazione Phenopacket]
+    VRSSteps --> Phenopacket[Phenopacket Generation]
 
-    Phenopacket --> Outputs[Generazione Output]
+    Phenopacket --> Outputs[Output Generation]
 
     Outputs --> JSON[Phenopackets JSON<br/>GA4GH v2]
-    Outputs --> VUS[VUS CSV<br/>Varianti Unknown]
-    Outputs --> Note[Note CSV<br/>Varianti Significative]
-    Outputs --> GeneSummary[Gene Summary CSV<br/>Conteggi per gene]
-    Outputs --> AnnotVCF[VCF Annotato<br/>VRS + OMOP]
+    Outputs --> VUS[VUS CSV<br/>Unknown Variants]
+    Outputs --> Known[Known CSV<br/>Significant Variants]
+    Outputs --> GeneSummary[Gene Summary CSV<br/>Counts per gene]
+    Outputs --> AnnotVCF[Annotated VCF<br/>VRS + OMOP]
 
-    JSON --> End([Fine Pipeline])
+    JSON --> End([End Pipeline])
     VUS --> End
-    Note --> End
+    Known --> End
     GeneSummary --> End
     AnnotVCF --> End
     CNV --> End
 ```
 
-## Dettaglio Rilevamento Piattaforma
+## Platform Detection Detail
 
 ```mermaid
 flowchart TD
-    Start[VCF File] --> ReadHeader[Leggi Header VCF<br/>prime 200 righe]
+    Start[VCF File] --> ReadHeader[Read VCF Header<br/>first 200 lines]
 
-    ReadHeader --> Parse[Parse Metadati]
+    ReadHeader --> Parse[Parse Metadata]
 
-    Parse --> CheckTVC{Contiene<br/>TVC?}
-    Parse --> CheckIon{Contiene<br/>Ion Torrent?}
-    Parse --> CheckOncomine{Contiene<br/>Oncomine?}
+    Parse --> CheckTVC{Contains<br/>TVC?}
+    Parse --> CheckIon{Contains<br/>Ion Torrent?}
+    Parse --> CheckOncomine{Contains<br/>Oncomine?}
 
-    CheckTVC -->|Sì| IonTorrent[Piattaforma:<br/>Ion Torrent]
-    CheckIon -->|Sì| IonTorrent
-    CheckOncomine -->|Sì| IonTorrent
+    CheckTVC -->|Yes| IonTorrent[Platform:<br/>Ion Torrent]
+    CheckIon -->|Yes| IonTorrent
+    CheckOncomine -->|Yes| IonTorrent
 
-    Parse --> CheckGATK{Contiene<br/>GATK?}
-    Parse --> CheckStrelka{Contiene<br/>Strelka?}
-    Parse --> CheckMuTect{Contiene<br/>MuTect?}
+    Parse --> CheckGATK{Contains<br/>GATK?}
+    Parse --> CheckStrelka{Contains<br/>Strelka?}
+    Parse --> CheckMuTect{Contains<br/>MuTect?}
 
-    CheckGATK -->|Sì| Illumina[Piattaforma:<br/>Illumina]
-    CheckStrelka -->|Sì| Illumina
-    CheckMuTect -->|Sì| Illumina
+    CheckGATK -->|Yes| Illumina[Platform:<br/>Illumina]
+    CheckStrelka -->|Yes| Illumina
+    CheckMuTect -->|Yes| Illumina
 
     CheckTVC -->|No| Unknown
     CheckIon -->|No| Unknown
     CheckOncomine -->|No| Unknown
     CheckGATK -->|No| Unknown
     CheckStrelka -->|No| Unknown
-    CheckMuTect -->|No| Unknown[Piattaforma:<br/>Sconosciuta]
+    CheckMuTect -->|No| Unknown[Platform:<br/>Unknown]
 
-    IonTorrent --> SetParams1[Imposta Parametri<br/>AF≥1%, DP≥100<br/>FAO≥10]
-    Illumina --> SetParams2[Imposta Parametri<br/>AF≥5%, DP≥50<br/>FAO=NA]
-    Unknown --> SetParams3[Parametri Default<br/>AF≥5%, DP≥50]
+    IonTorrent --> SetParams1[Set Parameters<br/>AF≥1%, DP≥100<br/>FAO≥10]
+    Illumina --> SetParams2[Set Parameters<br/>AF≥5%, DP≥50<br/>FAO=NA]
+    Unknown --> SetParams3[Default Parameters<br/>AF≥5%, DP≥50]
 
-    SetParams1 --> Return[Ritorna Parametri]
+    SetParams1 --> Return[Return Parameters]
     SetParams2 --> Return
     SetParams3 --> Return
 ```
 
-## Dettaglio Query VRS API
+## VRS API Query Detail
 
 ```mermaid
 flowchart TD
-    Start[Variante Annotata] --> PrepareQuery[Prepara Query<br/>HGVSg notation]
+    Start[Annotated Variant] --> PrepareQuery[Prepare Query<br/>HGVSg notation]
 
     PrepareQuery --> Query[HTTP GET Request<br/>reg.genome.network/allele]
 
-    Query --> Response{Status<br/>HTTP}
+    Query --> Response{HTTP<br/>Status}
 
     Response -->|200 OK| Parse[Parse JSON Response]
     Response -->|404| Retry{Retry<br/>Count < 3?}
     Response -->|500| Retry
     Response -->|Timeout| Retry
 
-    Retry -->|Sì| Wait[Attendi<br/>backoff esponenziale]
+    Retry -->|Yes| Wait[Wait<br/>exponential backoff]
     Wait --> Query
 
-    Retry -->|No| Failed[Segna come<br/>VRS lookup failed]
+    Retry -->|No| Failed[Mark as<br/>VRS lookup failed]
 
-    Parse --> Extract[Estrai Campi VRS]
+    Parse --> Extract[Extract VRS Fields]
 
     Extract --> Fields[• VRS Allele ID<br/>• VRS Sequence ID<br/>• Location info]
 
-    Fields --> AddToVariant[Aggiungi a Variante]
+    Fields --> AddToVariant[Add to Variant]
     Failed --> AddToVariant
 
-    AddToVariant --> CheckMore{Altre<br/>varianti?}
+    AddToVariant --> CheckMore{More<br/>variants?}
 
-    CheckMore -->|Sì| PrepareQuery
-    CheckMore -->|No| Complete[VRS Integration<br/>Completa]
+    CheckMore -->|Yes| PrepareQuery
+    CheckMore -->|No| Complete[VRS Integration<br/>Complete]
 ```
 
-## Dettaglio Generazione Phenopacket
+## Phenopacket Generation Detail
 
 ```mermaid
 flowchart TD
-    Start[Dati Annotati] --> CreatePacket[Crea Phenopacket Object]
+    Start[Annotated Data] --> CreatePacket[Create Phenopacket Object]
 
-    CreatePacket --> AddID[Aggiungi UUID<br/>identificatore unico]
+    CreatePacket --> AddID[Add UUID<br/>unique identifier]
 
-    AddID --> AddSubject[Aggiungi Subject]
+    AddID --> AddSubject[Add Subject]
     AddSubject --> SubjectFields[• sample_id<br/>• sex PATO ID<br/>• age of onset ISO]
 
-    SubjectFields --> AddDisease[Aggiungi Disease]
+    SubjectFields --> AddDisease[Add Disease]
     AddDisease --> DiseaseFields[• diagnosis label<br/>• NCIT term ID<br/>• onset age]
 
-    DiseaseFields --> AddInterpretations[Aggiungi Interpretations]
+    DiseaseFields --> AddInterpretations[Add Interpretations]
 
-    AddInterpretations --> LoopVariants{Per ogni<br/>variante}
+    AddInterpretations --> LoopVariants{For each<br/>variant}
 
-    LoopVariants --> CreateInterp[Crea Interpretation]
+    LoopVariants --> CreateInterp[Create Interpretation]
 
     CreateInterp --> InterpFields[• Variant HGVS<br/>• VRS Allele ID<br/>• Gene symbol<br/>• ClinVar class<br/>• OMOP concepts]
 
-    InterpFields --> AddToList[Aggiungi a Lista]
+    InterpFields --> AddToList[Add to List]
 
     AddToList --> LoopVariants
 
-    LoopVariants -->|Completato| AddMetadata[Aggiungi Metadata]
+    LoopVariants -->|Complete| AddMetadata[Add Metadata]
 
     AddMetadata --> MetadataFields[• Created timestamp<br/>• Software version<br/>• Resources used]
 
-    MetadataFields --> Serialize[Serializza a JSON]
+    MetadataFields --> Serialize[Serialize to JSON]
 
-    Serialize --> ValidateSchema{Schema<br/>Phenopackets v2<br/>valido?}
+    Serialize --> ValidateSchema{Phenopackets v2<br/>Schema<br/>valid?}
 
-    ValidateSchema -->|Sì| WriteFile[Scrivi File JSON]
-    ValidateSchema -->|No| Error[Errore Validazione]
+    ValidateSchema -->|Yes| WriteFile[Write JSON File]
+    ValidateSchema -->|No| Error[Validation Error]
 
-    WriteFile --> Complete[Phenopacket Generato]
+    WriteFile --> Complete[Phenopacket Generated]
 ```
 
-## Flusso Dati: Input → Output
+## Data Flow: Input → Output
 
 ```mermaid
 flowchart LR
     subgraph Input["INPUT FILES"]
-        VCF[VCF File<br/>Varianti genomiche]
-        CSV[Clinical CSV<br/>Metadati paziente]
+        VCF[VCF File<br/>Genomic variants]
+        CSV[Clinical CSV<br/>Patient metadata]
     end
 
     subgraph Processing["PROCESSING STAGES"]
@@ -198,7 +198,7 @@ flowchart LR
     subgraph Output["OUTPUT FILES"]
         JSON[Phenopackets JSON<br/>GA4GH Standard]
         VUS[VUS CSV<br/>Unknown Variants]
-        NOTE[Note CSV<br/>Significant Variants]
+        KNOWN[Known CSV<br/>Significant Variants]
         GENE[GeneSummary CSV<br/>Gene-level Stats]
         AVCF[Annotated VCF<br/>Enhanced VCF]
         CNV[CNV VCF<br/>Copy Number]
@@ -213,13 +213,13 @@ flowchart LR
 
     Stage5 --> JSON
     Stage5 --> VUS
-    Stage5 --> NOTE
+    Stage5 --> KNOWN
     Stage5 --> GENE
     Stage5 --> AVCF
     Stage2 --> CNV
 ```
 
-## Architettura Modulare
+## Modular Architecture
 
 ```mermaid
 flowchart TD
@@ -243,7 +243,7 @@ flowchart TD
         CommandLine[command_line_mode]
     end
 
-    subgraph External["Dipendenze Esterne"]
+    subgraph External["External Dependencies"]
         VcfR[vcfR<br/>VCF parsing]
         KOIOS[KOIOS<br/>OMOP annotation]
         RTL[rtracklayer<br/>Liftover]
@@ -270,26 +270,26 @@ flowchart TD
     Generate --> JSON
 ```
 
-## Standard e Ontologie Utilizzate
+## Standards and Ontologies Used
 
 ```mermaid
 flowchart LR
-    subgraph Standards["Standard Genomici"]
+    subgraph Standards["Genomic Standards"]
         VRS[VRS<br/>Variant Representation<br/>Specification]
-        HGVS[HGVS<br/>Nomenclatura<br/>Varianti]
+        HGVS[HGVS<br/>Variant<br/>Nomenclature]
         VCF[VCF<br/>Variant Call<br/>Format]
         Pheno[Phenopackets v2<br/>GA4GH]
     end
 
-    subgraph Ontologies["Ontologie"]
+    subgraph Ontologies["Ontologies"]
         OMOP[OMOP<br/>Medical Concepts]
-        NCIT[NCI Thesaurus<br/>Diagnosi Cancer]
-        PATO[PATO<br/>Fenotipo/Sesso]
-        ClinVar[ClinVar/ClinGen<br/>Significato Clinico]
+        NCIT[NCI Thesaurus<br/>Cancer Diagnosis]
+        PATO[PATO<br/>Phenotype/Sex]
+        ClinVar[ClinVar/ClinGen<br/>Clinical Significance]
     end
 
-    subgraph Databases["Database Popolazioni"]
-        gnomAD[gnomAD<br/>Frequenze Alleliche<br/>Popolazioni]
+    subgraph Databases["Population Databases"]
+        gnomAD[gnomAD<br/>Allele Frequencies<br/>Populations]
     end
 
     Pipeline[KOIOS-VRS<br/>Pipeline] --> Standards
@@ -299,30 +299,42 @@ flowchart LR
 
 ---
 
-## Note Tecniche
+## Technical Notes
 
-### Tecnologie Principali
-- **Linguaggio**: R (≥ 4.0)
-- **Tipo**: Pacchetto Bioconductor
+### Main Technologies
+- **Language**: R (≥ 4.0)
+- **Type**: Bioconductor package
 - **API**: VRS Registry (reg.genome.network)
-- **Standard**: GA4GH Phenopackets v2, VRS, HGVS
+- **Standards**: GA4GH Phenopackets v2, VRS, HGVS
 
-### Piattaforme Supportate
+### Supported Platforms
 - Ion Torrent (Oncomine panels, TVC caller)
 - Illumina (GATK, Strelka, MuTect2, VarScan)
-- Altri sequenziatori (parametri default)
+- Other sequencers (default parameters)
 
-### Formati Genoma
-- **Input**: hg19 o hg38
-- **Output**: hg38 (liftover automatico se necessario)
+### Genome Formats
+- **Input**: hg19 or hg38
+- **Output**: hg38 (automatic liftover if needed)
 
-### Casi d'Uso
-- Genomica del cancro (melanoma, polmone, colon-retto)
-- Reporting clinico varianti
-- Integrazione OMOP CDM
-- Interoperabilità dati GA4GH
+### Use Cases
+- Cancer genomics (melanoma, lung, colorectal)
+- Clinical variant reporting
+- OMOP CDM integration
+- GA4GH data interoperability
+
+### Output Files
+
+For each pipeline run, the following files are generated:
+1. **`*_Phenopackets.json`** - GA4GH Phenopackets v2 format with clinical and genomic data
+2. **`*_VUS.csv`** - Variants of Unknown Significance (concept_id = 1028197)
+3. **`*_Known.csv`** - Clinically significant variants (known pathogenic/benign)
+4. **`*_GeneSummary.csv`** - Gene-level mutation counts and summary statistics
+5. **`*_annotated.vcf`** - Final VCF with VRS and OMOP annotations in INFO field
+6. **`*_preprocessed.vcf`** - Quality-filtered intermediate VCF (after QC, before annotation)
+7. **`*_CNV.vcf`** - Copy number variants (separated from main pipeline)
+8. **`*_hg38.vcf`** - Lifted-over VCF (generated only if input was hg19)
 
 ---
 
-*Diagramma generato per KOIOS-VRS Pipeline v1.0*
+*Flow diagram for KOIOS-VRS Pipeline v1.0*
 *DOI: 10.5281/zenodo.17476991*
