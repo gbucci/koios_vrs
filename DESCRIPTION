@@ -12,14 +12,20 @@ Authors@R:
             family = "Riba",
             role = "aut",
             comment = c(ORCID = "0000-0003-4857-2027")),
+        person(given = "Elisa",
+            family = "Benetti",
+            role = "aut",
+            comment = c(ORCID = "0000-0002-0819-604X")),
         person(given = "Muhammad",
             family = "Tajwar",
             role = "ctb"),
         person(given = "Guido",
             family = "Scicolone",
+        comment = c(ORCID = "0000-0002-6947-2722")),
             role = "ctb"))
         person(given = "Corrado",
             family = "Masciullo",
+        comment = c(ORCID = "0000-0002-2728-1768")),
             role = "ctb"))
 
 Description: Processes cancer variants from VCF, enriches data using the KOIOS 
