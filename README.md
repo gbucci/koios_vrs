@@ -510,6 +510,7 @@ If you use this pipeline in your research, please cite:
 
 - **Gabriele Bucci** - Lead Developer, Project Ideator
 - **Michela Riba** - Project Ideator
+- **Elisa Benetti** - Project Contributor
 - **Guido Scicolone** - Developer
 - **Muhammad Tajwar** - Developer
 - **Corrado Masciullo** - Developer
